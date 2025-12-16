@@ -147,6 +147,14 @@ class PortfolioAnalyzer:
         self.returns = self.data.pct_change().dropna()
         self.benchmark_returns = self.benchmark_data.pct_change().dropna()
         
+        # Align benchmark returns with portfolio returns dates
+        common_dates = self.returns.index.intersection(self.benchmark_returns.index)
+        if len(common_dates) == 0:
+            raise ValueError("No common trading dates between portfolio and benchmark")
+        
+        self.returns = self.returns.loc[common_dates]
+        self.benchmark_returns = self.benchmark_returns.loc[common_dates]
+        
         # Calculate weighted portfolio returns
         self.portfolio_returns = (self.returns * self.weights).sum(axis=1)
         
@@ -168,13 +176,13 @@ class PortfolioAnalyzer:
         portfolio_daily_return = self.portfolio_returns.mean()
         portfolio_annual_return = portfolio_daily_return * TRADING_DAYS
         portfolio_volatility = self.portfolio_returns.std() * np.sqrt(TRADING_DAYS)
-        portfolio_sharpe = (portfolio_annual_return - RISK_FREE_RATE) / portfolio_volatility
+        portfolio_sharpe = (portfolio_annual_return - RISK_FREE_RATE) / portfolio_volatility if portfolio_volatility > 0 else 0.0
         
         # Benchmark metrics
         benchmark_daily_return = self.benchmark_returns.mean()
         benchmark_annual_return = benchmark_daily_return * TRADING_DAYS
         benchmark_volatility = self.benchmark_returns.std() * np.sqrt(TRADING_DAYS)
-        benchmark_sharpe = (benchmark_annual_return - RISK_FREE_RATE) / benchmark_volatility
+        benchmark_sharpe = (benchmark_annual_return - RISK_FREE_RATE) / benchmark_volatility if benchmark_volatility > 0 else 0.0
         
         # Total returns
         portfolio_total_return = self.portfolio_cumulative.iloc[-1] - 1
@@ -189,10 +197,18 @@ class PortfolioAnalyzer:
         benchmark_drawdown = (self.benchmark_cumulative - benchmark_running_max) / benchmark_running_max
         benchmark_max_drawdown = benchmark_drawdown.min()
         
-        # Alpha and Beta calculations
-        covariance = np.cov(self.portfolio_returns, self.benchmark_returns)[0][1]
-        benchmark_variance = np.var(self.benchmark_returns)
-        beta = covariance / benchmark_variance
+        # Alpha and Beta calculations - align data on common dates
+        aligned_data = pd.DataFrame({
+            'portfolio': self.portfolio_returns,
+            'benchmark': self.benchmark_returns
+        }).dropna()
+        
+        if len(aligned_data) == 0:
+            raise ValueError("No overlapping dates between portfolio and benchmark returns")
+        
+        covariance = np.cov(aligned_data['portfolio'], aligned_data['benchmark'])[0][1]
+        benchmark_variance = np.var(aligned_data['benchmark'])
+        beta = covariance / benchmark_variance if benchmark_variance > 0 else 0
         alpha = portfolio_annual_return - (RISK_FREE_RATE + beta * (benchmark_annual_return - RISK_FREE_RATE))
         
         # Store metrics
@@ -348,9 +364,11 @@ class PortfolioAnalyzer:
         
         # Plot individual stocks
         for i, ticker in enumerate(self.tickers):
-            ax4.scatter(annual_vol[i], annual_returns[i], 
+            ticker_return = annual_returns[ticker] if ticker in annual_returns.index else annual_returns.iloc[i]
+            ticker_vol = annual_vol[ticker] if ticker in annual_vol.index else annual_vol.iloc[i]
+            ax4.scatter(ticker_vol, ticker_return, 
                        s=150, alpha=0.7, c=[colors[i]], edgecolors='black', linewidth=1.5)
-            ax4.annotate(ticker, (annual_vol[i], annual_returns[i]),
+            ax4.annotate(ticker, (ticker_vol, ticker_return),
                         xytext=(7, 7), textcoords='offset points', fontsize=9)
         
         # Plot portfolio

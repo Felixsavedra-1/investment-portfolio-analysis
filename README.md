@@ -106,6 +106,10 @@ The tool generates:
 2. **Visualization**: 
    - `portfolio_analysis.png`: Comprehensive dashboard with all visualizations
 
+### Example Visualization
+
+![Portfolio Analysis Dashboard](portfolio_analysis.png)
+
 ## Metrics Explained
 
 - **Total Return**: Cumulative return over the analysis period

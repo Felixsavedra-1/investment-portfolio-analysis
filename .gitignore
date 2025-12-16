@@ -8,6 +8,7 @@ __pycache__/
 
 # Output files
 *.png
+!portfolio_analysis.png
 *.jpg
 *.jpeg
 *.pdf
